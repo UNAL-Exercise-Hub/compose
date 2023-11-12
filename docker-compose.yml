@@ -1,0 +1,209 @@
+version: '3.4'
+
+services:
+  authms:
+    image: auth_ms-auth_ms
+    container_name: auth_ms_general
+    env_file: .env
+    volumes:
+      - ./auth_ms:/code
+    ports:
+      - "8002:8000"
+  auth_db:
+    image: mongo:4.4.10
+    container_name: auth_db_general
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${AUTH_DB_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${AUTH_DB_PASSWORD}
+    ports:
+      - '27017:27017'
+    volumes:
+      - auth_data:/data/db
+
+  mongo-express:
+    image: mongo-express
+    restart: always
+    container_name: auth_db_mongo_express_general
+    environment:
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${AUTH_DB_USERNAME}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${AUTH_DB_PASSWORD}
+      - ME_CONFIG_MONGODB_URL=${AUTH_DB_URL}
+      - ME_CONFIG_OPTIONS_EDITORTHEME=ambiance
+    depends_on:
+      - auth_db
+    ports:
+      - '8081:8081'
+  
+  apigw:
+    build:
+      context: APIGateway
+      dockerfile: Dockerfile
+    container_name: apigw_unworkout
+    env_file: .env
+    volumes:
+      - .:/code
+    ports:
+      - "4000:4000"
+    
+  videosdb:
+    image: golang_videos_ms-mysql_videos_db
+    container_name: videos_db
+    env_file: .env
+    ports:
+      - "3307:3306"
+
+  videosms:
+   image: golang_videos_ms-golang_videos_ms
+   container_name: videos_unworkout
+   env_file: .env
+   volumes:
+     - ./golang_videos_ms:/code
+   ports:
+     - "8080:8080"
+   depends_on:
+      - videosdb
+   restart: always
+
+  rutinasms:
+    image: exerciseplan_ms
+    container_name: rutinas_unworkout
+    env_file: .env
+    volumes:
+      - ./Excersice_plan:/code
+    ports:
+      - "3333:3333"
+
+  cronjobms:
+    image: unworkout_cronjob_ms
+    container_name: cronjob_unworkout
+    env_file: .env
+    volumes:
+      - ./CronJob:/code
+    ports: 
+      - "3000:3000"
+
+  usersms:
+    image: user-usersmsunw
+    container_name: users_ms_unw
+    env_file: .env
+    volumes:
+      - ./user/unworkout_users_ms/target:/code
+    ports:
+      - "8082:8082"
+
+  usersdb:
+    container_name: users_db_unw
+    image: mysql:5.7.28
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: "unworkout_users_db"
+      MYSQL_USER: "julcalfonsocar"
+      MYSQL_PASSWORD: "jul2023"
+      MYSQL_ROOT_PASSWORD: "jul2023"
+    ports:
+      - "3308:3306"
+
+  auth-ldap:
+    image: osixia/openldap:1.1.8
+    container_name: auth_ldap
+    environment:
+      COMPOSE_HTTP_TIMEOUT: 200
+      LDAP_LOG_LEVEL: "256"
+      LDAP_ORGANISATION: "Unal Excercise Hub"
+      LDAP_DOMAIN: "unal.excercise.hub"
+      LDAP_BASE_DN: ""
+      LDAP_ADMIN_PASSWORD: "admin"
+      LDAP_CONFIG_PASSWORD: "config"
+      LDAP_READONLY_USER: "false"
+      #LDAP_READONLY_USER_USERNAME: "readonly"
+      #LDAP_READONLY_USER_PASSWORD: "readonly"
+      LDAP_BACKEND: "hdb"
+      LDAP_TLS: "true"
+      LDAP_TLS_CRT_FILENAME: "ldap.crt"
+      LDAP_TLS_KEY_FILENAME: "ldap.key"
+      LDAP_TLS_CA_CRT_FILENAME: "ca.crt"
+      LDAP_TLS_ENFORCE: "false"
+      LDAP_TLS_CIPHER_SUITE: "SECURE256:-VERS-SSL3.0"
+      LDAP_TLS_PROTOCOL_MIN: "3.1"
+      LDAP_TLS_VERIFY_CLIENT: "demand"
+      LDAP_REPLICATION: "false"
+      #LDAP_REPLICATION_CONFIG_SYNCPROV: "binddn="cn=admin,cn=config" bindmethod=simple credentials=$LDAP_CONFIG_PASSWORD searchbase="cn=config" type=refreshAndPersist retry="60 +" timeout=1 starttls=critical"
+      #LDAP_REPLICATION_DB_SYNCPROV: "binddn="cn=admin,$LDAP_BASE_DN" bindmethod=simple credentials=$LDAP_ADMIN_PASSWORD searchbase="$LDAP_BASE_DN" type=refreshAndPersist interval=00:00:00:10 retry="60 +" timeout=1 starttls=critical"
+      #LDAP_REPLICATION_HOSTS: "#PYTHON2BASH:['ldap://ldap.example.org','ldap://ldap2.example.org']"
+      LDAP_REMOVE_CONFIG_AFTER_SETUP: "true"
+      LDAP_SSL_HELPER_PREFIX: "ldap"
+    tty: true
+    stdin_open: true
+    volumes:
+      - /var/lib/ldap
+      - /etc/ldap/slapd.d
+      - /container/service/slapd/assets/certs/
+    
+    ports:
+    - "389:389"
+    - "636:636"
+    hostname: "unal.excercise.hub"
+  phpldapadmin:
+    image: osixia/phpldapadmin:latest
+    container_name: ldap_client
+    environment:
+      PHPLDAPADMIN_LDAP_HOSTS: "auth-ldap"
+      PHPLDAPADMIN_HTTPS: "false"
+    ports:
+      - "8090:80"
+    links:
+      - auth-ldap
+
+#  swarch2023ii-ldap:
+#    image: osixia/openldap:1.1.8
+#    container_name: swarch2023ii_ldap
+#    environment:
+#      COMPOSE_HTTP_TIMEOUT: 200
+#      LDAP_LOG_LEVEL: "256"
+#      LDAP_ORGANISATION: "Software Architecture"
+#      LDAP_DOMAIN: "arqsoft.unal.edu.co"
+#      LDAP_BASE_DN: ""
+#      LDAP_ADMIN_PASSWORD: "admin"
+#      LDAP_CONFIG_PASSWORD: "config"
+#      LDAP_READONLY_USER: "false"
+#      #LDAP_READONLY_USER_USERNAME: "readonly"
+#      #LDAP_READONLY_USER_PASSWORD: "readonly"
+#      LDAP_BACKEND: "hdb"
+#      LDAP_TLS: "true"
+#      LDAP_TLS_CRT_FILENAME: "ldap.crt"
+#      LDAP_TLS_KEY_FILENAME: "ldap.key"
+#      LDAP_TLS_CA_CRT_FILENAME: "ca.crt"
+#      LDAP_TLS_ENFORCE: "false"
+#      LDAP_TLS_CIPHER_SUITE: "SECURE256:-VERS-SSL3.0"
+#      LDAP_TLS_PROTOCOL_MIN: "3.1"
+#      LDAP_TLS_VERIFY_CLIENT: "demand"
+#      LDAP_REPLICATION: "false"
+#      #LDAP_REPLICATION_CONFIG_SYNCPROV: "binddn="cn=admin,cn=config"bindmethod=simple credentials=$LDAP_CONFIG_PASSWORD searchbase="cn=config"type=refreshAndPersist retry="60 +" timeout=1 starttls=critical"
+#      #LDAP_REPLICATION_DB_SYNCPROV: "binddn="cn=admin,$LDAP_BASE_DN"bindmethod=simple credentials=$LDAP_ADMIN_PASSWORD searchbase="$LDAP_BASE_DN"type=refreshAndPersist interval=00:00:00:10 retry="60 +" timeout=1starttls=critical"
+#      #LDAP_REPLICATION_HOSTS: "#PYTHON2BASH:['ldap://ldap.example.org','ldap://ldap2.example.org']"
+#      LDAP_REMOVE_CONFIG_AFTER_SETUP: "true"
+#      LDAP_SSL_HELPER_PREFIX: "ldap"
+#    tty: true
+#    stdin_open: true
+#    volumes:
+#      - /var/lib/ldap
+#      - /etc/ldap/slapd.d
+#      - /container/service/slapd/assets/certs/
+#    ports:
+#      - "389:389"
+#      - "636:636"
+#    hostname: "arqsoft.unal.edu.co"
+#    
+#  phpldapadmin:
+#    image: osixia/phpldapadmin:latest
+#    container_name: ldap_client
+#    environment:
+#      PHPLDAPADMIN_LDAP_HOSTS: "swarch2023ii-ldap"
+#      PHPLDAPADMIN_HTTPS: "false"
+#    ports:
+#      - "8085:80"
+#    links:
+#      - swarch2023ii-ldap
+
+volumes:
+  auth_data: null
